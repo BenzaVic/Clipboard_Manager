@@ -66,24 +66,24 @@ class ClipboardManager(QWidget):
         self.clipboard = QApplication.clipboard()
 
         self.setWindowTitle("Clipboard Manager")
-        self.resize(700, 400)
+        self.resize(800, 400)
 
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Search history…")
         self.search_bar.textChanged.connect(self.refresh_table)
 
-        # Table with 3 columns: Content, Pinned, Delete
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Pinned", "Content", "Delete"])
+        # Table with 4 columns: Pinned, Copy, Content, Delete
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Pinned", "Copy", "Content", "Delete"])
         self.table.cellDoubleClicked.connect(self.copy_item)
         self.table.cellClicked.connect(self.handle_table_click)
 
         # Resize columns
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, header.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
-
+        header.setSectionResizeMode(0, header.ResizeMode.ResizeToContents)  # Pinned
+        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)  # Copy
+        header.setSectionResizeMode(2, header.ResizeMode.Stretch)           # Content
+        header.setSectionResizeMode(3, header.ResizeMode.ResizeToContents)  # Delete
 
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
@@ -113,30 +113,37 @@ class ClipboardManager(QWidget):
 
         self.table.setRowCount(len(rows))
         for row_idx, (item_id, content, pinned) in enumerate(rows):
-            # Content cell
-            content_item = QTableWidgetItem(content)
-            content_item.setData(Qt.ItemDataRole.UserRole, item_id)
-            self.table.setItem(row_idx, 1, content_item)
 
-            # Pin cell
+            # Pinned cell
             pin_item = QTableWidgetItem("⭐" if pinned else "")
             pin_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-
             pin_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, 0, pin_item)
+
+            # Copy cell (📋)
+            copy_item = QTableWidgetItem("📋")
+            copy_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+            copy_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row_idx, 1, copy_item)
+
+            # Content cell (read-only)
+            content_item = QTableWidgetItem(content)
+            content_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+            content_item.setData(Qt.ItemDataRole.UserRole, item_id)
+            self.table.setItem(row_idx, 2, content_item)
 
             # Delete cell
             delete_item = QTableWidgetItem("❌")
             delete_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             delete_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(row_idx, 2, delete_item)
+            self.table.setItem(row_idx, 3, delete_item)
 
     def copy_item(self, row, col):
-        content = self.table.item(row, 1).text()
+        content = self.table.item(row, 2).text()
         self.clipboard.setText(content)
 
     def handle_table_click(self, row, col):
-        item = self.table.item(row, 1)
+        item = self.table.item(row, 2)
         if not item:
             return
 
@@ -149,8 +156,14 @@ class ClipboardManager(QWidget):
             self.refresh_table()
             return
 
+        # Copy button
+        if col == 1:
+            content = self.table.item(row, 2).text()
+            self.clipboard.setText(content)
+            return
+
         # Delete
-        if col == 2:
+        if col == 3:
             pinned = self.table.item(row, 0).text() == "⭐"
 
             if pinned:
@@ -163,7 +176,6 @@ class ClipboardManager(QWidget):
                 if reply == QMessageBox.StandardButton.No:
                     return
 
-                # Unpin before deleting
                 self.db.set_pinned(item_id, 0)
 
             self.db.delete_item(item_id)
