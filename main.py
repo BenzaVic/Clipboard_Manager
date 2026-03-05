@@ -73,6 +73,11 @@ class ClipboardManager(QWidget):
         self.table.cellDoubleClicked.connect(self.copy_item)
         self.table.cellClicked.connect(self.handle_pin_click)
 
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)   # Content column expands
+        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)  # Pin column stays small
+        self.table.setColumnWidth(1, 60)  # Optional: force a small width for the ⭐ column
+
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
         layout.addWidget(self.table)
