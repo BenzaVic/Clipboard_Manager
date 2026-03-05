@@ -38,14 +38,22 @@ class ClipboardDB:
     def search(self, query=""):
         cur = self.conn.cursor()
         if query:
-            cur.execute("SELECT id, content, pinned FROM history WHERE content LIKE ? ORDER BY pinned DESC, id DESC", (f"%{query}%",))
+            cur.execute(
+                "SELECT id, content, pinned FROM history "
+                "WHERE content LIKE ? ORDER BY pinned DESC, id DESC",
+                (f"%{query}%",)
+            )
         else:
-            cur.execute("SELECT id, content, pinned FROM history ORDER BY pinned DESC, id DESC")
+            cur.execute(
+                "SELECT id, content, pinned FROM history "
+                "ORDER BY pinned DESC, id DESC"
+            )
         return cur.fetchall()
 
     def set_pinned(self, item_id, pinned):
         self.conn.execute("UPDATE history SET pinned=? WHERE id=?", (pinned, item_id))
         self.conn.commit()
+
 
 class ClipboardManager(QWidget):
     def __init__(self):
@@ -63,6 +71,7 @@ class ClipboardManager(QWidget):
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Content", "Pinned"])
         self.table.cellDoubleClicked.connect(self.copy_item)
+        self.table.cellClicked.connect(self.handle_pin_click)
 
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
@@ -92,12 +101,34 @@ class ClipboardManager(QWidget):
 
         self.table.setRowCount(len(rows))
         for row_idx, (item_id, content, pinned) in enumerate(rows):
-            self.table.setItem(row_idx, 0, QTableWidgetItem(content))
-            self.table.setItem(row_idx, 1, QTableWidgetItem("⭐" if pinned else ""))
+            # Content cell
+            content_item = QTableWidgetItem(content)
+            content_item.setData(Qt.ItemDataRole.UserRole, item_id)
+            self.table.setItem(row_idx, 0, content_item)
+
+            # Pin cell
+            pin_item = QTableWidgetItem("⭐" if pinned else "")
+            self.table.setItem(row_idx, 1, pin_item)
 
     def copy_item(self, row, col):
         content = self.table.item(row, 0).text()
         self.clipboard.setText(content)
+
+    def handle_pin_click(self, row, col):
+        if col != 1:
+            return  # Only toggle when clicking the pin column
+
+        item = self.table.item(row, 0)
+        if not item:
+            return
+
+        item_id = item.data(Qt.ItemDataRole.UserRole)
+        currently_pinned = self.table.item(row, 1).text() == "⭐"
+
+        new_state = 0 if currently_pinned else 1
+        self.db.set_pinned(item_id, new_state)
+
+        self.refresh_table()
 
     def setup_tray(self):
         self.tray = QSystemTrayIcon(QIcon())
