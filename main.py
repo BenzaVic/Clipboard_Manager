@@ -74,17 +74,16 @@ class ClipboardManager(QWidget):
 
         # Table with 3 columns: Content, Pinned, Delete
         self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Content", "Pinned", "Delete"])
+        self.table.setHorizontalHeaderLabels(["Pinned", "Content", "Delete"])
         self.table.cellDoubleClicked.connect(self.copy_item)
         self.table.cellClicked.connect(self.handle_table_click)
 
         # Resize columns
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, header.ResizeMode.Stretch)
         header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
-        self.table.setColumnWidth(1, 60)
-        self.table.setColumnWidth(2, 60)
+
 
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
@@ -117,39 +116,42 @@ class ClipboardManager(QWidget):
             # Content cell
             content_item = QTableWidgetItem(content)
             content_item.setData(Qt.ItemDataRole.UserRole, item_id)
-            self.table.setItem(row_idx, 0, content_item)
+            self.table.setItem(row_idx, 1, content_item)
 
             # Pin cell
             pin_item = QTableWidgetItem("⭐" if pinned else "")
+            pin_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+
             pin_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.table.setItem(row_idx, 1, pin_item)
+            self.table.setItem(row_idx, 0, pin_item)
 
             # Delete cell
             delete_item = QTableWidgetItem("❌")
+            delete_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             delete_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, 2, delete_item)
 
     def copy_item(self, row, col):
-        content = self.table.item(row, 0).text()
+        content = self.table.item(row, 1).text()
         self.clipboard.setText(content)
 
     def handle_table_click(self, row, col):
-        item = self.table.item(row, 0)
+        item = self.table.item(row, 1)
         if not item:
             return
 
         item_id = item.data(Qt.ItemDataRole.UserRole)
 
         # Pin/unpin
-        if col == 1:
-            pinned = self.table.item(row, 1).text() == "⭐"
+        if col == 0:
+            pinned = self.table.item(row, 0).text() == "⭐"
             self.db.set_pinned(item_id, 0 if pinned else 1)
             self.refresh_table()
             return
 
         # Delete
         if col == 2:
-            pinned = self.table.item(row, 1).text() == "⭐"
+            pinned = self.table.item(row, 0).text() == "⭐"
 
             if pinned:
                 reply = QMessageBox.question(
