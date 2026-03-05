@@ -3,7 +3,7 @@ import sqlite3
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLineEdit, QTableWidget,
-    QTableWidgetItem, QSystemTrayIcon, QMenu
+    QTableWidgetItem, QSystemTrayIcon, QMenu, QMessageBox
 )
 from PyQt6.QtGui import QClipboard, QIcon, QAction
 from PyQt6.QtCore import QTimer, Qt
@@ -54,6 +54,10 @@ class ClipboardDB:
         self.conn.execute("UPDATE history SET pinned=? WHERE id=?", (pinned, item_id))
         self.conn.commit()
 
+    def delete_item(self, item_id):
+        self.conn.execute("DELETE FROM history WHERE id=?", (item_id,))
+        self.conn.commit()
+
 
 class ClipboardManager(QWidget):
     def __init__(self):
@@ -62,21 +66,25 @@ class ClipboardManager(QWidget):
         self.clipboard = QApplication.clipboard()
 
         self.setWindowTitle("Clipboard Manager")
-        self.resize(600, 400)
+        self.resize(700, 400)
 
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Search history…")
         self.search_bar.textChanged.connect(self.refresh_table)
 
-        self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Content", "Pinned"])
+        # Table with 3 columns: Content, Pinned, Delete
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["Content", "Pinned", "Delete"])
         self.table.cellDoubleClicked.connect(self.copy_item)
-        self.table.cellClicked.connect(self.handle_pin_click)
+        self.table.cellClicked.connect(self.handle_table_click)
 
+        # Resize columns
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.Stretch)   # Content column expands
-        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)  # Pin column stays small
-        self.table.setColumnWidth(1, 60)  # Optional: force a small width for the ⭐ column
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
+        self.table.setColumnWidth(1, 60)
+        self.table.setColumnWidth(2, 60)
 
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
@@ -113,27 +121,52 @@ class ClipboardManager(QWidget):
 
             # Pin cell
             pin_item = QTableWidgetItem("⭐" if pinned else "")
+            pin_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, 1, pin_item)
+
+            # Delete cell
+            delete_item = QTableWidgetItem("❌")
+            delete_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row_idx, 2, delete_item)
 
     def copy_item(self, row, col):
         content = self.table.item(row, 0).text()
         self.clipboard.setText(content)
 
-    def handle_pin_click(self, row, col):
-        if col != 1:
-            return  # Only toggle when clicking the pin column
-
+    def handle_table_click(self, row, col):
         item = self.table.item(row, 0)
         if not item:
             return
 
         item_id = item.data(Qt.ItemDataRole.UserRole)
-        currently_pinned = self.table.item(row, 1).text() == "⭐"
 
-        new_state = 0 if currently_pinned else 1
-        self.db.set_pinned(item_id, new_state)
+        # Pin/unpin
+        if col == 1:
+            pinned = self.table.item(row, 1).text() == "⭐"
+            self.db.set_pinned(item_id, 0 if pinned else 1)
+            self.refresh_table()
+            return
 
-        self.refresh_table()
+        # Delete
+        if col == 2:
+            pinned = self.table.item(row, 1).text() == "⭐"
+
+            if pinned:
+                reply = QMessageBox.question(
+                    self,
+                    "Pinned Item",
+                    "This item is pinned. Unpin and delete it?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.No:
+                    return
+
+                # Unpin before deleting
+                self.db.set_pinned(item_id, 0)
+
+            self.db.delete_item(item_id)
+            self.refresh_table()
+            return
 
     def setup_tray(self):
         self.tray = QSystemTrayIcon(QIcon())
