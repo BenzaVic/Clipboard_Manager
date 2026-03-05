@@ -401,10 +401,9 @@ class ClipboardManager(QWidget):
         max_history_spin.setValue(self.max_history)
         layout.addRow("Max History Items:", max_history_spin)
 
-        # Auto start (placeholder for future implementation)
+        # Auto start on login
         auto_start_cb = QCheckBox()
         auto_start_cb.setChecked(self.auto_start)
-        auto_start_cb.setEnabled(False)  # Disabled for now
         layout.addRow("Auto-start on login:", auto_start_cb)
 
         # Buttons
@@ -435,8 +434,29 @@ class ClipboardManager(QWidget):
         MAX_HISTORY_ITEMS = max_history
         self.db.cleanup_old_items()
 
+        # Handle auto-start on login
+        self.update_auto_start(auto_start)
+
         dialog.accept()
         self.refresh_table()
+
+    def update_auto_start(self, enable):
+        """Enable or disable auto-start on login by managing startup folder"""
+        try:
+            startup_folder = os.path.expanduser(r'~\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup')
+            bat_path = os.path.join(startup_folder, 'ClipboardManager.bat')
+            script_path = os.path.abspath(__file__)
+
+            if enable:
+                # Create a batch file to run the script
+                with open(bat_path, 'w') as f:
+                    f.write(f'@echo off\npython "{script_path}"\n')
+            else:
+                # Remove the batch file if it exists
+                if os.path.exists(bat_path):
+                    os.remove(bat_path)
+        except Exception as e:
+            QMessageBox.warning(self, "Auto-start Setup", f"Failed to update auto-start: {e}")
 
     def clear_history(self):
         """Clear all unpinned history items"""

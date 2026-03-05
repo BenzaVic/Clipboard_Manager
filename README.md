@@ -13,7 +13,6 @@ A lightweight desktop application that automatically records everything you copy
 - **History Management**: Configurable history size with automatic cleanup
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
-## How to Run
 
 ### Requirements
 
