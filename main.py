@@ -43,7 +43,7 @@ class ClipboardDB:
     def add_image_item(self, path):
         self.conn.execute(
             "INSERT INTO history (content, type, path) VALUES (?, 'image', ?)",
-            ("[Image]", path)
+            ("", path)
         )
         self.conn.commit()
 
@@ -96,11 +96,11 @@ class ClipboardManager(QWidget):
         self.table.cellClicked.connect(self.handle_table_click)
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.ResizeToContents)  # Pinned
-        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)  # Copy
-        header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)  # Type
-        header.setSectionResizeMode(3, header.ResizeMode.Stretch)           # Content
-        header.setSectionResizeMode(4, header.ResizeMode.ResizeToContents)  # Delete
+        header.setSectionResizeMode(0, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, header.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, header.ResizeMode.ResizeToContents)
 
         layout = QVBoxLayout()
         layout.addWidget(self.search_bar)
@@ -182,8 +182,7 @@ class ClipboardManager(QWidget):
             type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, 2, type_item)
 
-            # CONTENT COLUMN
-            # Always create a metadata item (invisible for images)
+            # CONTENT COLUMN (metadata item)
             meta_item = QTableWidgetItem("" if item_type == "image" else content)
             meta_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             meta_item.setData(Qt.ItemDataRole.UserRole, item_id)
@@ -191,18 +190,22 @@ class ClipboardManager(QWidget):
             meta_item.setData(Qt.ItemDataRole.UserRole + 2, path if path else "")
             self.table.setItem(row_idx, 3, meta_item)
 
-            # If it's an image, show a thumbnail widget instead of text
+            # IMAGE THUMBNAIL
             if item_type == "image" and path and os.path.exists(path):
                 label = QLabel()
                 pixmap = QPixmap(path)
 
                 if not pixmap.isNull():
+                    THUMB_SIZE = 128
                     pixmap = pixmap.scaled(
-                        128, 128,
+                        THUMB_SIZE, THUMB_SIZE,
                         Qt.AspectRatioMode.KeepAspectRatio,
                         Qt.TransformationMode.SmoothTransformation
                     )
                     label.setPixmap(pixmap)
+
+                    # Auto-scale row height
+                    self.table.setRowHeight(row_idx, pixmap.height() + 10)
 
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setCellWidget(row_idx, 3, label)
@@ -212,7 +215,7 @@ class ClipboardManager(QWidget):
             delete_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             delete_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row_idx, 4, delete_item)
-            
+
     def copy_item(self, row, col):
         item = self.table.item(row, 3)
         if not item:
